@@ -88,7 +88,8 @@ module Markdown = struct
         | `Ocaml_interface m ->
           Url (sprintf "%s.html" m, List.map ~f:transform_links t, title)
         | `Ocaml_implementation m ->
-          Url (sprintf "%s.html" m, List.map ~f:transform_links t, title)
+          Url (sprintf "%s.html" (Filename.basename m),
+               List.map ~f:transform_links t, title)
         | `Other -> 
           Url (href, List.map ~f:transform_links t, title)
         end
@@ -105,6 +106,46 @@ module Markdown = struct
 
   let to_html content = 
     Omd.to_html (preprocess content)
+
+end
+
+module Ocaml = struct
+
+  let to_html code =
+    let postprocessed =
+      let remove_comments s = 
+        String.sub_exn s ~index:3 ~length:(String.length s - 6)
+      in
+      let open Higlo in
+      let parsed = parse ~lang:"ocaml" code in
+      let flush_tokens revtoklist =
+        if List.for_all revtoklist 
+            ~f:(function Text t when String.strip t = "" -> true | _ -> false)
+        then ""
+        else
+          let html =
+            Xtmpl.string_of_xmls
+            (List.rev_map ~f:Higlo.token_to_xtmpl revtoklist) in
+          "<pre>" ^ html ^ "</pre>"
+      in
+      let rec loop acc_tokens acc_html tokens = 
+        match tokens with
+        | [] -> List.rev (flush_tokens acc_tokens :: acc_html)
+        | one :: more ->
+          begin match one with
+          | Bcomment com
+          | Lcomment com when String.sub com ~index:0 ~length:3 = Some "(*M" ->
+            let html_code = flush_tokens acc_tokens in
+            let html_comment = Markdown.to_html (remove_comments com) in
+            loop [] (html_comment :: html_code :: acc_html) more
+          | tok -> 
+            loop (tok :: acc_tokens) acc_html more
+          end
+      in
+      loop [] [] parsed
+      |> String.concat ~sep:"\n"
+    in
+    postprocessed
 
 end
 
@@ -224,6 +265,13 @@ let main () =
       let title = String.map base ~f:(function '_' -> ' ' | c -> c) in
       let content =
         Markdown.to_html (read_file path)
+        |> Template.make_page ~title ~stylesheets:conf#stylesheets in
+      write_file (conf#output_directory // sprintf "%s.html" base) ~content
+    | `Ocaml_implementation impl ->
+      let base = Filename.basename impl in
+      let title = String.map base ~f:(function '_' -> ' ' | c -> c) in
+      let content =
+        Ocaml.to_html (read_file path)
         |> Template.make_page ~title ~stylesheets:conf#stylesheets in
       write_file (conf#output_directory // sprintf "%s.html" base) ~content
     | m -> (* TODO *) ()
