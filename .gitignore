@@ -1,3 +1,6 @@
+_build/
+_doc/
+.merlin
 *.annot
 *.cmo
 *.cma
