@@ -1,4 +1,5 @@
 open Nonstd
+module Legacy_string = String
 module String = Sosa.Native_string
 let dbg fmt = Printf.(ksprintf (eprintf "# %s\n")) fmt
 
@@ -86,7 +87,9 @@ module Markdown = struct
           Url (sprintf "./%s.html" (Filename.basename m),
                List.map ~f:transform_links t, title)
         | `Ocaml_interface m ->
-          Url (sprintf "%s.html" m, List.map ~f:transform_links t, title)
+          let modname = Filename.basename m |> Legacy_string.capitalize in
+          Url (sprintf "api/%s.html" modname,
+               List.map ~f:transform_links t, title)
         | `Ocaml_implementation m ->
           Url (sprintf "%s.html" (Filename.basename m),
                List.map ~f:transform_links t, title)
@@ -232,6 +235,8 @@ let conf =
     method stylesheets =
       env "CSS" |> Option.map ~f:(String.split ~on:(`Character ','))
       |> Option.value ~default:default_stylesheets
+    method api_doc_directory =
+      env "API"
     method display =
       let list_of_paths l =
         (List.map l ~f:(sprintf "  - %S") |> String.concat ~sep:"\n") in
@@ -245,6 +250,10 @@ let conf =
       variable_note "INPUT";
       say "Style sheets:\n%s" (list_of_paths self#stylesheets);
       variable_note "CSS";
+      begin match self#api_doc_directory with
+      | Some s -> say "Getting API docs from: %S" s
+      | None -> say "No getting API docs (*Warning*)"
+      end;
       say "Index file: %s" self#index_file;
       variable_note "INDEX";
       ()
@@ -252,6 +261,10 @@ let conf =
 
 let main () =
   succeedf "mkdir -p %s" conf#output_directory;
+  begin match conf#api_doc_directory with
+  | Some s -> succeedf "rsync -a %s %s/api" s conf#output_directory
+  | None -> say "Warning, no API docs"
+  end;
   let index = read_file conf#index_file in
   let markdown_index =
     Markdown.to_html index
