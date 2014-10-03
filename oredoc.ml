@@ -108,7 +108,18 @@ module Markdown = struct
     |> List.map ~f:transform_links
 
   let to_html content = 
-    Omd.to_html (preprocess content)
+    let p = preprocess content in
+    Omd.(to_html p)
+
+  let to_toc content =
+    let p = preprocess content in
+    Omd.(to_html (toc ~start:[0] p))
+
+  let to_html_and_toc content = 
+    let p = preprocess content in
+    (* Omd.(to_html p, to_html (toc  ~start:[1] p)) *)
+    Omd.(to_html p, to_html (toc ~start:[1]  p))
+
 
 end
 
@@ -131,22 +142,27 @@ module Ocaml = struct
             (List.rev_map ~f:Higlo.token_to_xtmpl revtoklist) in
           "<pre>" ^ html ^ "</pre>"
       in
-      let rec loop acc_tokens acc_html tokens = 
+      let rec loop acc_tokens acc_html acc_toc tokens = 
         match tokens with
-        | [] -> List.rev (flush_tokens acc_tokens :: acc_html)
+        | [] -> 
+          (List.rev (flush_tokens acc_tokens :: acc_html)
+           |> String.concat ~sep:"\n",
+           List.rev acc_toc |> String.concat ~sep:"\n"
+           |> Markdown.to_toc)
         | one :: more ->
           begin match one with
           | Bcomment com
           | Lcomment com when String.sub com ~index:0 ~length:3 = Some "(*M" ->
             let html_code = flush_tokens acc_tokens in
-            let html_comment = Markdown.to_html (remove_comments com) in
-            loop [] (html_comment :: html_code :: acc_html) more
+            let comment_content = remove_comments com in
+            let html_comment = Markdown.to_html comment_content in
+            loop [] (html_comment :: html_code :: acc_html) 
+              (comment_content :: acc_toc) more
           | tok -> 
-            loop (tok :: acc_tokens) acc_html more
+            loop (tok :: acc_tokens) acc_html acc_toc more
           end
       in
-      loop [] [] parsed
-      |> String.concat ~sep:"\n"
+      loop [] [] [] parsed
     in
     postprocessed
 
@@ -154,7 +170,7 @@ end
 
 module Template = struct
 
-  let make_page ~title ~stylesheets content =
+  let make_page ~title ~stylesheets ~toc ~menu content =
     let link css =
       sprintf "<link rel=\"stylesheet\" href=%S type=\"text/css\">" css in
     " <!DOCTYPE html> <html> <head>"
@@ -167,7 +183,9 @@ module Template = struct
     ^ "<div class=\"row\">\n\
        <div class=\"col-md-3\">\n\
        <h2>Contents</h2>"
-    ^ "<strong>TODO</strong>"
+    ^ toc
+    ^ "<h2>Menu</h2>"
+    ^ menu
     ^ "</div><div class=\"col-md-9\">"
     ^ content
     ^ "</div></div></div></body><html>"
@@ -237,6 +255,11 @@ let conf =
       |> Option.value ~default:default_stylesheets
     method api_doc_directory =
       env "API"
+    method title_prefix =
+      env "TITLE_PREFIX" |> Option.value ~default:""
+    method title ?(with_prefix=true) t = 
+      let tt = String.map t ~f:(function '_' -> ' ' | c -> c) in
+      sprintf "%s%s" (if with_prefix then self#title_prefix else "") tt
     method display =
       let list_of_paths l =
         (List.map l ~f:(sprintf "  - %S") |> String.concat ~sep:"\n") in
@@ -254,6 +277,8 @@ let conf =
       | Some s -> say "Getting API docs from: %S" s
       | None -> say "No getting API docs (*Warning*)"
       end;
+      say "Title prefix: %S" self#title_prefix;
+      variable_note "TITLE_PREFIX";
       say "Index file: %s" self#index_file;
       variable_note "INDEX";
       ()
@@ -265,27 +290,40 @@ let main () =
   | Some s -> succeedf "rsync -a %s %s/api" s conf#output_directory
   | None -> say "Warning, no API docs"
   end;
-  let index = read_file conf#index_file in
-  let markdown_index =
-    Markdown.to_html index
-    |> Template.make_page ~title:"Home" ~stylesheets:conf#stylesheets
+  let menu =
+    sprintf "- [Home](index.html)\n" 
+    :: (List.map conf#input_files ~f:(fun path ->
+        match File_kind.identify_file path with
+        | `Markdown m
+        | `Ocaml_implementation m ->
+          let base = Filename.basename m in
+          let title = conf#title ~with_prefix:false base in
+          sprintf "- [%s](%s.html)\n" title base
+        | other -> ""))
+    @ [sprintf "- [API Documentation](./api/index.html)\n"]
+    |> String.concat ~sep:""
+    |> Markdown.to_html
   in
+  let markdown_index =
+    let content, toc = Markdown.to_html_and_toc (read_file conf#index_file) in
+    let title = conf#title "Home" in
+    Template.make_page ~menu ~title ~stylesheets:conf#stylesheets ~toc content in
   write_file (conf#output_directory // "index.html") ~content:markdown_index;
   List.iter conf#input_files ~f:begin fun path ->
     match File_kind.identify_file path with
     | `Markdown m ->
       let base = Filename.basename m in
-      let title = String.map base ~f:(function '_' -> ' ' | c -> c) in
+      let title = conf#title base in
       let content =
-        Markdown.to_html (read_file path)
-        |> Template.make_page ~title ~stylesheets:conf#stylesheets in
+        let content, toc = Markdown.to_html_and_toc (read_file path) in
+        Template.make_page ~menu ~title ~stylesheets:conf#stylesheets ~toc content in
       write_file (conf#output_directory // sprintf "%s.html" base) ~content
     | `Ocaml_implementation impl ->
       let base = Filename.basename impl in
-      let title = String.map base ~f:(function '_' -> ' ' | c -> c) in
+      let title = conf#title base in
       let content =
-        Ocaml.to_html (read_file path)
-        |> Template.make_page ~title ~stylesheets:conf#stylesheets in
+        let content, toc = Ocaml.to_html (read_file path) in
+        Template.make_page ~title ~menu  ~stylesheets:conf#stylesheets ~toc content in
       write_file (conf#output_directory // sprintf "%s.html" base) ~content
     | m -> (* TODO *) ()
   end;
