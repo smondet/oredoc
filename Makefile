@@ -6,15 +6,16 @@ all: native
 MAIN=oredoc
 FINDLIB_PACKAGES=omd higlo.ocaml nonstd sosa
 
+BUILD_FLAGS=-cflags -rectypes -tag thread -use-ocamlfind 
 package_options=$(foreach p, $(FINDLIB_PACKAGES), -package $(p))
+
 byte:
-	ocamlbuild -tag thread -use-ocamlfind $(package_options) $(MAIN).byte && \
+	ocamlbuild $(BUILD_FLAGS) $(package_options) $(MAIN).byte && \
 	  mv $(MAIN).byte $(MAIN)
 
 native:
-	ocamlbuild -tag thread -use-ocamlfind $(package_options) $(MAIN).native && \
+	ocamlbuild $(BUILD_FLAGS) $(package_options) $(MAIN).native && \
 	  mv $(MAIN).native $(MAIN)
-
 
 
 .merlin:
