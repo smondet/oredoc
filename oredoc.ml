@@ -61,7 +61,6 @@ module Markdown = struct
       | Blockquote  t -> Blockquote (List.map ~f:transform_links t)
       | Text _
       | Code _
-      | Code_block _
       | Br
       | Hr
       | Img_ref _
@@ -72,6 +71,15 @@ module Markdown = struct
       | X _
       | Raw _ | Raw_block _
       | Img _ as e -> e
+      | Code_block (lang, code) as code_block ->
+        begin try
+          let (_ : Higlo.lexer) = Higlo.get_lexer lang in
+          Html_block (
+            "<pre>"
+            ^ (Higlo.to_xtmpl ~lang code |> Xtmpl.string_of_xmls)
+            ^ "</pre>")
+        with _ -> code_block
+        end
       | Url (href, t, title) -> 
         begin match File_kind.identify_file href with
         | `Markdown m ->
@@ -158,6 +166,7 @@ let write_file f ~content =
   close_out o
 
 let default_stylesheets = [
+  "https://cdn.rawgit.com/hammerlab/ketrew/2d1c430cca52caa71e363a765ff8775a6ae14ba9/src/doc/code_style.css";
   "http://cdn.jsdelivr.net/bootstrap/3.1.1/css/bootstrap.min.css";
   "http://cdn.jsdelivr.net/bootstrap/3.1.1/css/bootstrap-theme.min.css";
   (* <link rel="stylesheet" href="code_style.css" type="text/css"> *)
