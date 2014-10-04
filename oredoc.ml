@@ -346,7 +346,7 @@ let main () =
   let open Meta_result in
   succeedf "mkdir -p %s" conf#output_directory;
   begin match conf#api_doc_directory with
-  | Some s -> succeedf "rsync -a %s %s/api" s conf#output_directory
+  | Some s -> succeedf "rsync -a %s/ %s/api" s conf#output_directory
   | None -> say "Warning, no API docs"
   end;
   let menu_md =
