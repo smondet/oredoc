@@ -237,7 +237,7 @@ module Template = struct
 
 end
 
-let say fmt = Printf.(ksprintf (eprintf "%s\n")) fmt
+let say fmt = Printf.(ksprintf (printf "%s\n")) fmt
 
 let (//) = Filename.concat
 
@@ -332,6 +332,7 @@ let conf =
       | Some s -> say "Getting API docs from: %S" s
       | None -> say "No getting API docs (*Warning*)"
       end;
+      variable_note "API";
       say "Title prefix: %S" self#title_prefix;
       variable_note "TITLE_PREFIX";
       say "Command substitutions:";
@@ -433,8 +434,12 @@ let main () =
 let () =
   match Array.to_list Sys.argv with
   | [ _ ] | [] ->  main ()
-  | exec :: other ->
+  | exec :: "--help" :: _ 
+  | exec :: "-h" :: _ ->
     say "Usage: [ENV_VAR=...] %s" exec;
     say "Current configuration:";
     conf#display
+  | exec :: other ->
+    say "Wrong command line";
+    exit 1
 
