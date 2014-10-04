@@ -466,7 +466,7 @@ let main () =
       | m -> (* TODO *) return ()
     end
   in
-  List.iter first_pass_result.more_things_todo begin function
+  List.dedup first_pass_result.more_things_todo |> List.iter ~f:begin function
   | `Create_man_page cmd ->
     let actual_cmd = 
       let stripped = String.strip cmd in
