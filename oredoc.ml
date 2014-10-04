@@ -1,17 +1,29 @@
+
+(*M
+
+Implementation of Oredoc
+========================
+
+Usual “OCaml-configuration” header:
+
+M*)
 open Nonstd
 module Legacy_string = String
 module String = Sosa.Native_string
 let dbg fmt = Printf.(ksprintf (eprintf "# %s\n")) fmt
 
 
+(*M
+
+Yet Another Monad
+-----------------
+
+The module `Meta_result` provides a funny monad that allows one to keep track
+of things to do “later” during a computation.
+
+M*)
 module Meta_result = struct
 
-  (*type 'a t = {
-    result: 'a;
-    more_things_todo: [
-      | `Create_man_page of string
-    ] list;
-  }*)
   type ('a, 'b) t = {
     result: 'a;
     more_things_todo: 'b list;
@@ -25,6 +37,15 @@ module Meta_result = struct
 
 end
 
+(*M
+
+Identify Files By Extension 
+---------------------------
+
+This is used both for deciding which treatment to apply to files and for
+transforming relative links between them (in Markdown).
+
+M*)
 module File_kind = struct
 
   let check_and_remove_extension filename ~ext =
@@ -48,6 +69,19 @@ module File_kind = struct
 
 end
 
+(*M
+Markdown To HTML
+----------------
+
+Our wrapper around [Omd](https://github.com/ocaml/omd), which adds a few
+features/extensions:
+
+- There is a special syntax to !overhighlight! stuff.
+- Local links are transformed to be consistent between a repository view
+(Github, Bitbucket) and the generated website.
+- `some-command --help` will be transformed to a link too.
+
+M*)
 module Markdown = struct
 
   let code_url code =
@@ -167,6 +201,14 @@ module Markdown = struct
 
 end
 
+(*M
+
+Converting OCaml to HTML
+------------------------
+
+OCaml code with special Markdown comments will be transformed to HTML.
+
+M*)
 module Ocaml = struct
 
   open Meta_result
@@ -212,6 +254,12 @@ module Ocaml = struct
 
 end
 
+(*M
+
+HTML Template
+-------------
+
+M*)
 module Template = struct
 
   let make_page ~title ~stylesheets ~toc ~menu content =
@@ -237,41 +285,57 @@ module Template = struct
 
 end
 
+(*M
+
+Some Utilities
+--------------
+
+M*)
+
+module Utilities = struct
+  let (//) = Filename.concat
+
+  let env s =
+    try Some (Sys.getenv s) with _ -> None
+
+  let failwithf fmt = ksprintf failwith fmt
+
+  let succeed s = 
+    match Sys.command s with
+    | 0 -> ()
+    | other -> failwithf "Command %S did not succeed: %d" s other
+  let succeedf fmt= ksprintf succeed fmt
+
+  let all_files dir =
+    Sys.readdir dir |> Array.to_list 
+    |> List.filter_map ~f:(fun d ->
+        let p = dir // d in 
+        if Sys.is_directory p then None else Some p)
+
+  let read_file f =
+    let i = open_in f in
+    let buf = Buffer.create 42 in
+    let rec loop () =
+      try Buffer.add_channel buf i 1; loop () with _ -> () in
+    loop ();
+    close_in i;
+    Buffer.contents buf
+
+  let write_file f ~content =
+    let o = open_out f in
+    output_string o content;
+    close_out o
+end
+open Utilities
 let say fmt = Printf.(ksprintf (printf "%s\n")) fmt
 
-let (//) = Filename.concat
 
-let env s =
-  try Some (Sys.getenv s) with _ -> None
+(*M
 
-let failwithf fmt = ksprintf failwith fmt
+Configuration
+-------------
 
-let succeed s = 
-  match Sys.command s with
-  | 0 -> ()
-  | other -> failwithf "Command %S did not succeed: %d" s other
-let succeedf fmt= ksprintf succeed fmt
-
-let all_files dir =
-  Sys.readdir dir |> Array.to_list 
-  |> List.filter_map ~f:(fun d ->
-      let p = dir // d in 
-      if Sys.is_directory p then None else Some p)
-
-let read_file f =
-  let i = open_in f in
-  let buf = Buffer.create 42 in
-  let rec loop () =
-    try Buffer.add_channel buf i 1; loop () with _ -> () in
-  loop ();
-  close_in i;
-  Buffer.contents buf
-
-let write_file f ~content =
-  let o = open_out f in
-  output_string o content;
-  close_out o
-
+M*)
 let default_stylesheets = [
   "https://cdn.rawgit.com/hammerlab/ketrew/2d1c430cca52caa71e363a765ff8775a6ae14ba9/src/doc/code_style.css";
   "http://cdn.jsdelivr.net/bootstrap/3.1.1/css/bootstrap.min.css";
@@ -343,6 +407,12 @@ let conf =
       ()
   end
 
+(*M
+
+Main Entry Point
+----------------
+
+M*)
 let main () =
   let open Meta_result in
   succeedf "mkdir -p %s" conf#output_directory;
