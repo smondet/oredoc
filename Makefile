@@ -1,5 +1,5 @@
 
-.PHONY: all clean byte native top plugin
+.PHONY: all clean byte native top apidoc
 
 all: native
 
@@ -17,6 +17,11 @@ native:
 	ocamlbuild $(BUILD_FLAGS) $(package_options) $(MAIN).native && \
 	  mv $(MAIN).native $(MAIN)
 
+apidoc:
+	mkdir -p _apidoc && \
+	ocamlfind ocamldoc -rectypes -html -d _apidoc/ $(package_options) \
+	  -thread  -charset UTF-8 -t "Oredoc API" -keep-code -colorize-code \
+	  -sort -I _build/ oredoc.ml
 
 .merlin:
 	echo 'B _build/' > .merlin && echo 'S .' >> .merlin && \
