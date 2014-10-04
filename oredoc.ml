@@ -463,7 +463,9 @@ let main () =
         >>= fun content ->
         write_file (conf#output_directory // sprintf "%s.html" base) ~content;
         return ()
-      | m -> (* TODO *) return ()
+      | m -> 
+        succeedf "cp %s %s/" (Filename.quote path) conf#output_directory;
+        return ()
     end
   in
   List.dedup first_pass_result.more_things_todo |> List.iter ~f:begin function
