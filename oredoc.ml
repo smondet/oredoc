@@ -42,7 +42,7 @@ end
 Identify Files By Extension 
 ---------------------------
 
-This is used both for deciding which treatment to apply to files and for
+This is used for both 1) deciding which treatment to apply to files and 2)
 transforming relative links between them (in Markdown).
 
 M*)
@@ -79,7 +79,7 @@ features/extensions:
 - There is a special syntax to !overhighlight! stuff.
 - Local links are transformed to be consistent between a repository view
 (Github, Bitbucket) and the generated website.
-- `some-command --help` will be transformed to a link too.
+- `some-command --help` will be transformed into a link too.
 
 M*)
 module Markdown = struct
@@ -206,7 +206,7 @@ end
 Converting OCaml to HTML
 ------------------------
 
-OCaml code with special Markdown comments will be transformed to HTML.
+OCaml code with special Markdown comments will be transformed into HTML.
 
 M*)
 module Ocaml = struct
@@ -497,9 +497,7 @@ let main () =
         return ()
       );
     end;
-    (* say "Creating: %s  for %S" (Markdown.code_url cmd) actual_cmd *)
   end;
-  (* say "Done." *)
   ()
 
 
