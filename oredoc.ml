@@ -325,6 +325,15 @@ module Utilities = struct
     let o = open_out f in
     output_string o content;
     close_out o
+
+  let parse_list_of_substitutions s =
+    let subs = String.split ~on:(`Character ',') s in
+    List.filter_map subs ~f:(fun sub ->
+        match String.split ~on:(`Character ':') (String.strip sub) with
+        | [one; two] -> Some (one, two)
+        | other -> None
+      )
+
 end
 open Utilities
 let say fmt = Printf.(ksprintf (printf "%s\n")) fmt
@@ -366,19 +375,25 @@ let conf =
       env "API"
     method title_prefix =
       env "TITLE_PREFIX" |> Option.value ~default:""
+    method title_substitutions =
+      env "TITLE_SUBSTITUTIONS"
+      |> Option.value_map ~default:[] ~f:parse_list_of_substitutions
     method title ?(with_prefix=true) t = 
-      let tt = String.map t ~f:(function '_' -> ' ' | c -> c) in
+      let tt = 
+        List.find_map self#title_substitutions ~f:(function
+          | (a, b) when 
+              a = t || (try Filename.chop_extension a = t with _ -> false) ->
+            Some b
+          | _ -> None)
+        |> function
+        | Some b -> b
+        | None -> 
+          String.map t ~f:(function '_' -> ' ' | c -> c)
+      in
       sprintf "%s%s" (if with_prefix then self#title_prefix else "") tt
     method command_substitutions =
       env "COMMAND_SUBSTITUTIONS" 
-      |> Option.value_map ~default:[] ~f:(fun s ->
-          let subs = String.split ~on:(`Character ',') s in
-          List.filter_map subs ~f:(fun sub ->
-              match String.split ~on:(`Character ':') sub with
-              | [one; two] -> Some (one, two)
-              | other -> None
-            )
-        )
+      |> Option.value_map ~default:[] ~f:parse_list_of_substitutions
     method display =
       let list_of_paths l =
         (List.map l ~f:(sprintf "  - %S") |> String.concat ~sep:"\n") in
