@@ -1,5 +1,5 @@
 
-.PHONY: all clean byte native top apidoc
+.PHONY: all clean byte native top apidoc install uninstall
 
 all: native
 
@@ -13,9 +13,11 @@ byte:
 	ocamlbuild $(BUILD_FLAGS) $(package_options) $(MAIN).byte && \
 	  mv $(MAIN).byte $(MAIN)
 
-native:
+native: $(MAIN)
+
+$(MAIN): oredoc.ml
 	ocamlbuild $(BUILD_FLAGS) $(package_options) $(MAIN).native && \
-	  mv $(MAIN).native $(MAIN)
+	  mv _build/$(MAIN).native $(MAIN)
 
 apidoc:
 	mkdir -p _apidoc && \
@@ -27,6 +29,12 @@ apidoc:
 	echo 'B _build/' > .merlin && echo 'S .' >> .merlin && \
 	  for p in $(FINDLIB_PACKAGES) ; do echo "PKG $$p" >> .merlin ; done && \
 	  echo Done
+
+install: $(MAIN)
+	mkdir -p $(BINDIR) &&  cp $(MAIN) $(BINDIR)/
+
+uninstall:
+	rm -f  $(BINDIR)/$(MAIN)
 
 clean:
 	rm -fr _build $(MAIN)
