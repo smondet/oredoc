@@ -27,6 +27,7 @@ For example with Oredoc's website itself:
       OUTPUT_DIR=_doc \
       COMMAND_SUBSTITUTIONS=oredoc:_build/oredoc.native,some_command:gcc  \
       API=_apidoc \
+      CATCH_MODULE_PATHS=^Oredoc:,^Markdown:Oredoc. \
       TITLE_SUBSTITUTIONS="oredoc.ml:Literate Implementation" \
       oredoc 
 
@@ -46,6 +47,7 @@ OCamlDoc-generated API
 types (e.g. `Oredoc.Meta_result.t`), or whole modules
 (e.g. `Oredoc.Markdown`) are created too (note, for now oredoc is not that
 clever: types are called `t`, values are anything else).
+Prefixes can be passed to the argument and added later: c.f. `Markdown.to_html`.
 
 Configuration
 -------------
@@ -64,6 +66,8 @@ for filenames are made by chopping off the extension and replacing
 underscores with spaces; this settings overrides this behavior.
 - `API=_apidoc`: directory containing OCamldoc API documentation (will be
 `rsync`ed to `api/` in the output directory).
+- `CATCH_MODULE_PATHS`: list of couples, POSIX regular expressions with prefix
+string, used to convert module paths.
 - `CSS` is a comma-separated list of stylesheet URLs or paths.
 
 Warning
