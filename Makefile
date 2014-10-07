@@ -1,5 +1,5 @@
 
-.PHONY: all clean byte native top apidoc install uninstall
+.PHONY: all clean byte native top apidoc install uninstall doc
 
 all: native
 
@@ -24,6 +24,16 @@ apidoc:
 	ocamlfind ocamldoc -rectypes -html -d _apidoc/ $(package_options) \
 	  -thread  -charset UTF-8 -t "Oredoc API" -keep-code -colorize-code \
 	  -sort -I _build/ oredoc.ml
+
+doc: apidoc
+	INPUT=oredoc.ml \
+	      INDEX=README.md \
+	      TITLE_PREFIX="Oredoc: " \
+	      OUTPUT_DIR=_doc \
+	      COMMAND_SUBSTITUTIONS=oredoc:_build/oredoc.native,some_command:gcc  \
+	      API=_apidoc \
+	      TITLE_SUBSTITUTIONS="oredoc.ml:Literate Implementation" \
+	      oredoc 
 
 .merlin:
 	echo 'B _build/' > .merlin && echo 'S .' >> .merlin && \
