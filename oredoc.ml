@@ -181,7 +181,12 @@ module Markdown = struct
             ^ "</pre>")
         with _ -> code_block
         end
-      | Url (href, t, title) -> 
+      | Url (href, t, title)
+        when String.sub href 0 7 = Some "http://"
+           || String.sub href 0 8 = Some "https://"
+           || String.sub href 0 6 = Some "ftp://"
+        -> Url (href, t, title)
+      | Url (href, t, title) ->
         begin match File_kind.identify_file href with
         | `Markdown m ->
           Url (sprintf "./%s.html" (Filename.basename m),
