@@ -90,6 +90,34 @@ module Markdown = struct
       | other -> '_')
     ^ ".html"
 
+  let looks_like_module_path code =
+    String.length code > 3
+    &&
+    String.split code ~on:(`Character '.')
+    |> List.for_all ~f:(fun s ->
+        String.length s > 0
+        &&
+        String.for_all s ~f:(function
+          | 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '_' | '\'' -> true
+          | other -> false))
+
+  let url_of_module_path code =
+    let is_value v =
+      match v.[0] with
+      | None -> false
+      | Some c when Char.lowercase c = c -> true
+      | Some c -> false in
+    let rec loop acc =
+      function
+      | [] -> ""
+      | ["t"]  -> acc ^ "html#TYPEt"
+      | [one] when is_value one -> acc ^ "html#VAL" ^ one
+      | [one] -> acc ^ one ^ ".html"
+      | modul :: more -> loop (acc ^ modul ^ ".") more
+    in
+    loop "api/" (String.split code ~on:(`Character '.'))
+
+
   let preprocess content =
     let highligh t read_tokens = 
       let open Omd_representation in
@@ -139,6 +167,8 @@ module Markdown = struct
         (* dbg "Code: %s %s" lang code; *)
         more_stuff_to_do := `Create_man_page code :: !more_stuff_to_do;
         Url (code_url code, [Code (lang, code)], code)
+      | Code (lang, code) when looks_like_module_path code ->
+        Url (url_of_module_path code, [Code (lang, code)], code)
       | Code (lang, code) -> Code (lang, code)
       | Code_block (lang, code) as code_block ->
         begin try

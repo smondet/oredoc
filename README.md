@@ -42,6 +42,10 @@ e.g. `opam --help`, or `opam install --help`.
 [`oredoc.mli`](./oredoc.mli) are converted into links to the
 OCamlDoc-generated API
 (the generation itself is not handled by Oredoc).
+- Links to values (e.g. `Oredoc.Meta_result.bind`), 
+types (e.g. `Oredoc.Meta_result.t`), or whole modules
+(e.g. `Oredoc.Markdown`) are created too (note, for now oredoc is not that
+clever: types are called `t`, values are anything else).
 
 Configuration
 -------------
