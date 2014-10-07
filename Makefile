@@ -4,7 +4,7 @@
 all: native
 
 MAIN=oredoc
-FINDLIB_PACKAGES=omd higlo.ocaml nonstd sosa
+FINDLIB_PACKAGES=omd higlo.ocaml nonstd sosa re.posix
 
 BUILD_FLAGS=-cflags -rectypes -tag thread -use-ocamlfind 
 package_options=$(foreach p, $(FINDLIB_PACKAGES), -package $(p))
@@ -25,15 +25,16 @@ apidoc:
 	  -thread  -charset UTF-8 -t "Oredoc API" -keep-code -colorize-code \
 	  -sort -I _build/ oredoc.ml
 
-doc: apidoc
+doc: apidoc $(MAIN)
 	INPUT=oredoc.ml \
 	      INDEX=README.md \
 	      TITLE_PREFIX="Oredoc: " \
 	      OUTPUT_DIR=_doc \
 	      COMMAND_SUBSTITUTIONS=oredoc:_build/oredoc.native,some_command:gcc  \
 	      API=_apidoc \
+	      CATCH_MODULE_PATHS=^Oredoc:,^Markdown:Oredoc. \
 	      TITLE_SUBSTITUTIONS="oredoc.ml:Literate Implementation" \
-	      oredoc 
+	      ./$(MAIN)
 
 .merlin:
 	echo 'B _build/' > .merlin && echo 'S .' >> .merlin && \

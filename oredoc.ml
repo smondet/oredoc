@@ -84,24 +84,22 @@ features/extensions:
 M*)
 module Markdown = struct
 
+  type 'a configuration = 'a constraint 'a = <
+    catch_module_paths: (string * Re.re * string) list;
+    ..
+  >
+
   let code_url code =
     String.map code ~f:(function
       | 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' as c -> c
       | other -> '_')
     ^ ".html"
 
-  let looks_like_module_path code =
-    String.length code > 3
-    &&
-    String.split code ~on:(`Character '.')
-    |> List.for_all ~f:(fun s ->
-        String.length s > 0
-        &&
-        String.for_all s ~f:(function
-          | 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '_' | '\'' -> true
-          | other -> false))
+  let looks_like_module_path ~configuration code =
+    List.exists configuration#catch_module_paths
+      ~f:(fun (_, re, _) -> Re.execp re code)
 
-  let url_of_module_path code =
+  let url_of_module_path ~configuration code =
     let is_value v =
       match v.[0] with
       | None -> false
@@ -115,10 +113,14 @@ module Markdown = struct
       | [one] -> acc ^ one ^ ".html"
       | modul :: more -> loop (acc ^ modul ^ ".") more
     in
-    loop "api/" (String.split code ~on:(`Character '.'))
+    let prefix =
+      List.find_map configuration#catch_module_paths ~f:(fun (_, re, pr) ->
+          if Re.execp re code then Some pr else None)
+      |> Option.value ~default:"" in
+    loop ("api/" ^ prefix) (String.split code ~on:(`Character '.'))
 
 
-  let preprocess content =
+  let preprocess ~configuration content =
     let highligh t read_tokens = 
       let open Omd_representation in
       let highlight_style =
@@ -167,8 +169,8 @@ module Markdown = struct
         (* dbg "Code: %s %s" lang code; *)
         more_stuff_to_do := `Create_man_page code :: !more_stuff_to_do;
         Url (code_url code, [Code (lang, code)], code)
-      | Code (lang, code) when looks_like_module_path code ->
-        Url (url_of_module_path code, [Code (lang, code)], code)
+      | Code (lang, code) when looks_like_module_path ~configuration code ->
+        Url (url_of_module_path ~configuration code, [Code (lang, code)], code)
       | Code (lang, code) -> Code (lang, code)
       | Code_block (lang, code) as code_block ->
         begin try
@@ -206,23 +208,23 @@ module Markdown = struct
       |> make_paragraphs
       |> List.map ~f:transform_links)
 
-  let to_html content = 
+  let to_html ~(configuration:_ configuration) content = 
     Meta_result.(
-      preprocess content
+      preprocess ~configuration content
       >>= fun p ->
       return Omd.(to_html p)
     )
 
-  let to_toc content =
+  let to_toc ~configuration content =
     Meta_result.(
-      preprocess content
+      preprocess ~configuration content
       >>= fun p ->
       return Omd.(to_html (toc ~start:[0] p))
     )
 
-  let to_html_and_toc content = 
+  let to_html_and_toc ~configuration content = 
     Meta_result.(
-      preprocess content
+      preprocess ~configuration content
       >>= fun p ->
       return Omd.(to_html p, to_html (toc ~start:[1]  p))
     )
@@ -243,7 +245,7 @@ module Ocaml = struct
 
   open Meta_result
 
-  let to_html code =
+  let to_html ~configuration code =
     let remove_comments s = 
       String.sub_exn s ~index:3 ~length:(String.length s - 6)
     in
@@ -262,7 +264,8 @@ module Ocaml = struct
     let rec loop acc_tokens acc_html acc_toc tokens = 
       match tokens with
       | [] -> 
-        List.rev acc_toc |> String.concat ~sep:"\n" |> Markdown.to_toc
+        (List.rev acc_toc |> String.concat ~sep:"\n" 
+         |> Markdown.to_toc ~configuration)
         >>= fun toc ->
         return (List.rev (flush_tokens acc_tokens :: acc_html) 
          |> String.concat ~sep:"\n", toc)
@@ -272,7 +275,7 @@ module Ocaml = struct
         | Lcomment com when String.sub com ~index:0 ~length:3 = Some "(*M" ->
           let html_code = flush_tokens acc_tokens in
           let comment_content = remove_comments com in
-          Markdown.to_html comment_content
+          Markdown.to_html ~configuration comment_content
           >>= fun html_comment ->
           loop [] (html_comment :: html_code :: acc_html) 
             (comment_content :: acc_toc) more
@@ -382,12 +385,12 @@ let default_stylesheets = [
   (* <link rel="stylesheet" href="code_style.css" type="text/css"> *)
 ]
 
-let conf = 
+let configuration = 
   object (self)
     method output_directory =
       env "OUTPUT_DIR" |> Option.value ~default:"_doc"
     method input_files =
-      env "INPUT" |> Option.value ~default:"oredoc.ml,src/doc,doc"
+      env "INPUT" |> Option.value ~default:""
       |> String.split ~on:(`Character ',')
       |> List.map ~f:(fun path ->
           try
@@ -424,6 +427,12 @@ let conf =
     method command_substitutions =
       env "COMMAND_SUBSTITUTIONS" 
       |> Option.value_map ~default:[] ~f:parse_list_of_substitutions
+    method catch_module_paths =
+      env "CATCH_MODULE_PATHS" 
+      |> Option.value_map ~default:[] ~f:parse_list_of_substitutions
+      |> List.filter_map ~f:(fun (pattern, prefix) ->
+          try Some (pattern, Re_posix.compile_pat pattern, prefix)
+          with _ -> None)
     method display =
       let list_of_paths l =
         (List.map l ~f:(sprintf "  - %S") |> String.concat ~sep:"\n") in
@@ -449,6 +458,10 @@ let conf =
       variable_note "COMMAND_SUBSTITUTIONS";
       say "Index file: %s" self#index_file;
       variable_note "INDEX";
+      say "Catch module paths:";
+      List.iter self#catch_module_paths (fun (a,_, b) ->
+          say "  - %S → Prefix: %s" a b);
+      variable_note "CATCH_MODULE_PATHS";
       ()
   end
 
@@ -460,56 +473,56 @@ Main Entry Point
 M*)
 let main () =
   let open Meta_result in
-  succeedf "mkdir -p %s" conf#output_directory;
-  begin match conf#api_doc_directory with
-  | Some s -> succeedf "rsync -a %s/ %s/api" s conf#output_directory
+  succeedf "mkdir -p %s" configuration#output_directory;
+  begin match configuration#api_doc_directory with
+  | Some s -> succeedf "rsync -a %s/ %s/api" s configuration#output_directory
   | None -> say "Warning, no API docs"
   end;
   let menu_md =
     sprintf "- [Home](index.html)\n" 
-    :: (List.map conf#input_files ~f:(fun path ->
+    :: (List.map configuration#input_files ~f:(fun path ->
         match File_kind.identify_file path with
         | `Markdown m
         | `Ocaml_implementation m ->
           let base = Filename.basename m in
-          let title = conf#title ~with_prefix:false base in
+          let title = configuration#title ~with_prefix:false base in
           sprintf "- [%s](%s.html)\n" title base
         | other -> ""))
     @ [sprintf "- [API Documentation](./api/index.html)\n"]
     |> String.concat ~sep:""
   in
   let first_pass_result : (unit, _) t =
-    Markdown.to_html menu_md
+    Markdown.to_html ~configuration menu_md
     >>= fun menu ->
-    Markdown.to_html_and_toc (read_file conf#index_file)
+    Markdown.to_html_and_toc ~configuration (read_file configuration#index_file)
     >>= fun (content, toc) ->
-    let title = conf#title "Home" in
-    Template.make_page ~menu ~title ~stylesheets:conf#stylesheets ~toc content
+    let title = configuration#title "Home" in
+    Template.make_page ~menu ~title ~stylesheets:configuration#stylesheets ~toc content
     >>= fun markdown_index ->
-    write_file (conf#output_directory // "index.html") ~content:markdown_index;
-    List.fold ~init:(return ()) conf#input_files ~f:begin fun prev path ->
+    write_file (configuration#output_directory // "index.html") ~content:markdown_index;
+    List.fold ~init:(return ()) configuration#input_files ~f:begin fun prev path ->
       prev >>= fun () ->
       match File_kind.identify_file path with
       | `Markdown m ->
         let base = Filename.basename m in
-        let title = conf#title base in
-        Markdown.to_html_and_toc (read_file path)
+        let title = configuration#title base in
+        Markdown.to_html_and_toc ~configuration (read_file path)
         >>= fun (content, toc) ->
-        Template.make_page ~menu ~title ~stylesheets:conf#stylesheets ~toc content
+        Template.make_page ~menu ~title ~stylesheets:configuration#stylesheets ~toc content
         >>= fun content ->
-        write_file (conf#output_directory // sprintf "%s.html" base) ~content;
+        write_file (configuration#output_directory // sprintf "%s.html" base) ~content;
         return ()
       | `Ocaml_implementation impl ->
         let base = Filename.basename impl in
-        let title = conf#title base in
-        Ocaml.to_html (read_file path)
+        let title = configuration#title base in
+        Ocaml.to_html ~configuration (read_file path)
         >>= fun (content, toc) ->
-        Template.make_page ~title ~menu  ~stylesheets:conf#stylesheets ~toc content
+        Template.make_page ~title ~menu  ~stylesheets:configuration#stylesheets ~toc content
         >>= fun content ->
-        write_file (conf#output_directory // sprintf "%s.html" base) ~content;
+        write_file (configuration#output_directory // sprintf "%s.html" base) ~content;
         return ()
       | m -> 
-        succeedf "cp %s %s/" (Filename.quote path) conf#output_directory;
+        succeedf "cp %s %s/" (Filename.quote path) configuration#output_directory;
         return ()
     end
   in
@@ -517,7 +530,7 @@ let main () =
   | `Create_man_page cmd ->
     let actual_cmd = 
       let stripped = String.strip cmd in
-      List.find_map conf#command_substitutions ~f:(fun (left, right) ->
+      List.find_map configuration#command_substitutions ~f:(fun (left, right) ->
           match String.(sub stripped ~index:0 ~length:(length left)) with
           | Some prefix when prefix = left ->
             Some (right
@@ -525,18 +538,18 @@ let main () =
                               ~length:(length stripped - length left)))
           | _ -> None) |> Option.value ~default:stripped
     in
-    let output_file = conf#output_directory // Markdown.code_url cmd in
+    let output_file = configuration#output_directory // Markdown.code_url cmd in
     begin try 
       succeedf "set -o pipefail ; %s=groff | groff -Thtml -mandoc > %s" actual_cmd output_file;
     with
     | e -> 
       ignore (
         succeedf "(echo '```' ; %s ; echo '```') > %s" actual_cmd output_file;
-        Markdown.to_html_and_toc (read_file output_file)
+        Markdown.to_html_and_toc ~configuration (read_file output_file)
         >>= fun (content, toc) ->
-        Markdown.to_html menu_md
+        Markdown.to_html ~configuration menu_md
         >>= fun menu ->
-        Template.make_page ~menu ~title:cmd ~stylesheets:conf#stylesheets ~toc:"" content
+        Template.make_page ~menu ~title:cmd ~stylesheets:configuration#stylesheets ~toc:"" content
         >>= fun content ->
         write_file (output_file) ~content;
         return ()
@@ -553,7 +566,7 @@ let () =
   | exec :: "-h" :: _ ->
     say "Usage: [ENV_VAR=...] %s" exec;
     say "Current configuration:";
-    conf#display
+    configuration#display
   | exec :: other ->
     say "Wrong command line";
     exit 1
