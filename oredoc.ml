@@ -121,18 +121,22 @@ module Markdown = struct
 
 
   let preprocess ~configuration content =
-    let highligh t read_tokens = 
-      let open Omd_representation in
-      let highlight_style =
-        "color: red; background-color: yellow; font-weight: bold" in
-      (* dbg "highlight for: %s" (Omd_lexer.destring_of_tokens ~limit:5  read_tokens); *)
-      function 
-      | Exclamation :: Word w :: Exclamation :: more ->
-        let in_red = sprintf  "<span style=%S>%s</span>" highlight_style w in
-        Some (Html in_red :: t, read_tokens, more)
-      | m ->
-        (* dbg "none for: %s" (Omd_lexer.destring_of_tokens ~limit:4 m); *)
-        None
+    let highligh : Omd_representation.extension =
+      object
+        method parser_extension t read_tokens = 
+          let open Omd_representation in
+          let highlight_style =
+            "color: red; background-color: yellow; font-weight: bold" in
+          (* dbg "highlight for: %s" (Omd_lexer.destring_of_tokens ~limit:5  read_tokens); *)
+          function 
+          | Exclamation :: Word w :: Exclamation :: more ->
+            let in_red = sprintf  "<span style=%S>%s</span>" highlight_style w in
+            Some (Raw in_red :: t, read_tokens, more)
+          | m ->
+            (* dbg "none for: %s" (Omd_lexer.destring_of_tokens ~limit:4 m); *)
+            None
+        method to_string = "highlight"
+      end
     in
     let more_stuff_to_do = ref [] in
     let rec transform_links (t: Omd.element) : Omd.element  =
@@ -175,7 +179,7 @@ module Markdown = struct
       | Code_block (lang, code) as code_block ->
         begin try
           let (_ : Higlo.lexer) = Higlo.get_lexer lang in
-          Html_block (
+          Raw (
             "<pre>"
             ^ (Higlo.to_xtmpl ~lang code |> Xtmpl.string_of_xmls)
             ^ "</pre>")
