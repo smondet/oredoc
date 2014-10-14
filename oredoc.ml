@@ -442,6 +442,9 @@ let configuration =
       |> List.filter_map ~f:(fun (pattern, prefix) ->
           try Some (pattern, Re_posix.compile_pat pattern, prefix)
           with _ -> None)
+    method add_to_menu =
+      env "ADD_TO_MENU"
+      |> Option.value ~default:""
     method display =
       let list_of_paths l =
         (List.map l ~f:(sprintf "  - %S") |> String.concat ~sep:"\n") in
@@ -471,6 +474,8 @@ let configuration =
       List.iter self#catch_module_paths (fun (a,_, b) ->
           say "  - %S → Prefix: %s" a b);
       variable_note "CATCH_MODULE_PATHS";
+      say "Add to the menu: %S" self#add_to_menu;
+      variable_note "ADD_TO_MENU";
       ()
   end
 
@@ -497,7 +502,11 @@ let main () =
           let title = configuration#title ~with_prefix:false base in
           sprintf "- [%s](%s.html)\n" title base
         | other -> ""))
-    @ [sprintf "- [API Documentation](./api/index.html)\n"]
+    @ [
+      (match configuration#api_doc_directory with
+       | Some _ -> sprintf "- [API Documentation](./api/index.html)\n"
+       | None -> "");
+      configuration#add_to_menu; ]
     |> String.concat ~sep:""
   in
   let first_pass_result : (unit, _) t =
