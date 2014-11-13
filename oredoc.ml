@@ -558,7 +558,10 @@ let main () =
     in
     let output_file = configuration#output_directory // Markdown.code_url cmd in
     begin try 
-      succeedf "set -o pipefail ; %s=groff | groff -Thtml -mandoc > %s" actual_cmd output_file;
+      let bash_cmd = 
+        sprintf "set -o pipefail ; %s=groff | groff -Thtml -mandoc > %s"
+          actual_cmd output_file in
+      succeedf "bash -c %s" (Filename.quote bash_cmd)
     with
     | e -> 
       ignore (
