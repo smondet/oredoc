@@ -12,8 +12,7 @@ Install
 
 If you have `opam` up and running:
 
-    opam remote add -k git smondet git@github.com:smondet/dev-opam-repo
-    opam install oredoc
+    opam pin add oredoc -k git https://github.com/smondet/oredoc.git
 
 
 Example
