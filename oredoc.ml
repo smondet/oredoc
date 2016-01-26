@@ -39,7 +39,7 @@ end
 
 (*M
 
-Identify Files By Extension 
+Identify Files By Extension
 ---------------------------
 
 This is used for both 1) deciding which treatment to apply to files and 2)
@@ -123,12 +123,12 @@ module Markdown = struct
   let preprocess ~configuration content =
     let highligh : Omd_representation.extension =
       object
-        method parser_extension t read_tokens = 
+        method parser_extension t read_tokens =
           let open Omd_representation in
           let highlight_style =
             "color: red; background-color: yellow; font-weight: bold" in
           (* dbg "highlight for: %s" (Omd_lexer.destring_of_tokens ~limit:5  read_tokens); *)
-          function 
+          function
           | Exclamation :: Word w :: Exclamation :: more ->
             let in_red = sprintf  "<span style=%S>%s</span>" highlight_style w in
             Some (Raw in_red :: t, read_tokens, more)
@@ -141,7 +141,7 @@ module Markdown = struct
     let more_stuff_to_do = ref [] in
     let rec transform_links (t: Omd.element) : Omd.element  =
       let open Omd in
-      match t with 
+      match t with
       | Paragraph  t -> Paragraph (List.map ~f:transform_links t)
       | Emph  t -> Emph (List.map ~f:transform_links t)
       | Bold t -> Bold (List.map ~f:transform_links t)
@@ -167,8 +167,8 @@ module Markdown = struct
       | X _
       | Raw _ | Raw_block _
       | Img _ as e -> e
-      | Code (lang, code) when 
-          String.sub code ~index:(String.length code - 6) ~length:6 
+      | Code (lang, code) when
+          String.sub code ~index:(String.length code - 6) ~length:6
           = Some "--help" ->
         (* dbg "Code: %s %s" lang code; *)
         more_stuff_to_do := `Create_man_page code :: !more_stuff_to_do;
@@ -202,7 +202,7 @@ module Markdown = struct
         | `Ocaml_implementation m ->
           Url (sprintf "%s.html" (Filename.basename m),
                List.map ~f:transform_links t, title)
-        | `Other -> 
+        | `Other ->
           Url (href, List.map ~f:transform_links t, title)
         end
       | Ref  (ref_container, name, string, _) as e -> e
@@ -217,7 +217,7 @@ module Markdown = struct
       |> make_paragraphs
       |> List.map ~f:transform_links)
 
-  let to_html ~(configuration:_ configuration) content = 
+  let to_html ~(configuration:_ configuration) content =
     Meta_result.(
       preprocess ~configuration content
       >>= fun p ->
@@ -231,7 +231,7 @@ module Markdown = struct
       return Omd.(to_html (toc ~start:[0] p))
     )
 
-  let to_html_and_toc ~configuration content = 
+  let to_html_and_toc ~configuration content =
     Meta_result.(
       preprocess ~configuration content
       >>= fun p ->
@@ -255,13 +255,13 @@ module Ocaml = struct
   open Meta_result
 
   let to_html ~configuration code =
-    let remove_comments s = 
+    let remove_comments s =
       String.sub_exn s ~index:3 ~length:(String.length s - 6)
     in
     let open Higlo in
     let parsed = parse ~lang:"ocaml" code in
     let flush_tokens revtoklist =
-      if List.for_all revtoklist 
+      if List.for_all revtoklist
           ~f:(function Text t when String.strip t = "" -> true | _ -> false)
       then ""
       else
@@ -270,13 +270,13 @@ module Ocaml = struct
             (List.rev_map ~f:Higlo.token_to_xml revtoklist) in
         "<pre>" ^ html ^ "</pre>"
     in
-    let rec loop acc_tokens acc_html acc_toc tokens = 
+    let rec loop acc_tokens acc_html acc_toc tokens =
       match tokens with
-      | [] -> 
-        (List.rev acc_toc |> String.concat ~sep:"\n" 
+      | [] ->
+        (List.rev acc_toc |> String.concat ~sep:"\n"
          |> Markdown.to_toc ~configuration)
         >>= fun toc ->
-        return (List.rev (flush_tokens acc_tokens :: acc_html) 
+        return (List.rev (flush_tokens acc_tokens :: acc_html)
          |> String.concat ~sep:"\n", toc)
       | one :: more ->
         begin match one with
@@ -286,9 +286,9 @@ module Ocaml = struct
           let comment_content = remove_comments com in
           Markdown.to_html ~configuration comment_content
           >>= fun html_comment ->
-          loop [] (html_comment :: html_code :: acc_html) 
+          loop [] (html_comment :: html_code :: acc_html)
             (comment_content :: acc_toc) more
-        | tok -> 
+        | tok ->
           loop (tok :: acc_tokens) acc_html acc_toc more
         end
     in
@@ -313,7 +313,7 @@ module Template = struct
       ^ "<meta charset=\"utf-8\">"
       ^ sprintf "<title>%s</title>" title
       ^ "</head>"
-      ^ "<body><div class=\"container\">" 
+      ^ "<body><div class=\"container\">"
       ^ sprintf "<h1>%s</h1>" title
       ^ "<div class=\"row\">\n\
          <div class=\"col-md-3\">\n\
@@ -342,16 +342,16 @@ module Utilities = struct
 
   let failwithf fmt = ksprintf failwith fmt
 
-  let succeed s = 
+  let succeed s =
     match Sys.command s with
     | 0 -> ()
     | other -> failwithf "Command %S did not succeed: %d" s other
   let succeedf fmt= ksprintf succeed fmt
 
   let all_files dir =
-    Sys.readdir dir |> Array.to_list 
+    Sys.readdir dir |> Array.to_list
     |> List.filter_map ~f:(fun d ->
-        let p = dir // d in 
+        let p = dir // d in
         if Sys.is_directory p then None else Some p)
 
   let read_file f =
@@ -394,7 +394,7 @@ let default_stylesheets = [
   (* <link rel="stylesheet" href="code_style.css" type="text/css"> *)
 ]
 
-let configuration = 
+let configuration =
   object (self)
     method output_directory =
       env "OUTPUT_DIR" |> Option.value ~default:"_doc"
@@ -420,24 +420,24 @@ let configuration =
     method title_substitutions =
       env "TITLE_SUBSTITUTIONS"
       |> Option.value_map ~default:[] ~f:parse_list_of_substitutions
-    method title ?(with_prefix=true) t = 
-      let tt = 
+    method title ?(with_prefix=true) t =
+      let tt =
         List.find_map self#title_substitutions ~f:(function
-          | (a, b) when 
+          | (a, b) when
               a = t || (try Filename.chop_extension a = t with _ -> false) ->
             Some b
           | _ -> None)
         |> function
         | Some b -> b
-        | None -> 
+        | None ->
           String.map t ~f:(function '_' -> ' ' | c -> c)
       in
       sprintf "%s%s" (if with_prefix then self#title_prefix else "") tt
     method command_substitutions =
-      env "COMMAND_SUBSTITUTIONS" 
+      env "COMMAND_SUBSTITUTIONS"
       |> Option.value_map ~default:[] ~f:parse_list_of_substitutions
     method catch_module_paths =
-      env "CATCH_MODULE_PATHS" 
+      env "CATCH_MODULE_PATHS"
       |> Option.value_map ~default:[] ~f:parse_list_of_substitutions
       |> List.filter_map ~f:(fun (pattern, prefix) ->
           try Some (pattern, Re_posix.compile_pat pattern, prefix)
@@ -493,7 +493,7 @@ let main () =
   | None -> say "Warning, no API docs"
   end;
   let menu_md =
-    sprintf "- [Home](index.html)\n" 
+    sprintf "- [Home](index.html)\n"
     :: (List.map configuration#input_files ~f:(fun path ->
         match File_kind.identify_file path with
         | `Markdown m
@@ -539,14 +539,14 @@ let main () =
         >>= fun content ->
         write_file (configuration#output_directory // sprintf "%s.html" base) ~content;
         return ()
-      | m -> 
+      | m ->
         succeedf "cp %s %s/" (Filename.quote path) configuration#output_directory;
         return ()
     end
   in
   List.dedup first_pass_result.more_things_todo |> List.iter ~f:begin function
   | `Create_man_page cmd ->
-    let actual_cmd = 
+    let actual_cmd =
       let stripped = String.strip cmd in
       List.find_map configuration#command_substitutions ~f:(fun (left, right) ->
           match String.(sub stripped ~index:0 ~length:(length left)) with
@@ -557,13 +557,13 @@ let main () =
           | _ -> None) |> Option.value ~default:stripped
     in
     let output_file = configuration#output_directory // Markdown.code_url cmd in
-    begin try 
-      let bash_cmd = 
+    begin try
+      let bash_cmd =
         sprintf "set -o pipefail ; %s=groff | groff -Thtml -mandoc > %s"
           actual_cmd output_file in
       succeedf "bash -c %s" (Filename.quote bash_cmd)
     with
-    | e -> 
+    | e ->
       ignore (
         succeedf "(echo '```' ; %s ; echo '```') > %s" actual_cmd output_file;
         Markdown.to_html_and_toc ~configuration (read_file output_file)
@@ -583,7 +583,7 @@ let main () =
 let () =
   match Array.to_list Sys.argv with
   | [ _ ] | [] ->  main ()
-  | exec :: "--help" :: _ 
+  | exec :: "--help" :: _
   | exec :: "-h" :: _ ->
     say "Usage: [ENV_VAR=...] %s" exec;
     say "Current configuration:";
@@ -591,4 +591,3 @@ let () =
   | exec :: other ->
     say "Wrong command line";
     exit 1
-
