@@ -181,7 +181,7 @@ module Markdown = struct
           let (_ : Higlo.lexer) = Higlo.get_lexer lang in
           Raw (
             "<pre>"
-            ^ (Higlo.to_xtmpl ~lang code |> Xtmpl.string_of_xmls)
+            ^ (Higlo.to_xml ~lang code |> Xtmpl_xml.to_string)
             ^ "</pre>")
         with _ -> code_block
         end
@@ -266,8 +266,8 @@ module Ocaml = struct
       then ""
       else
         let html =
-          Xtmpl.string_of_xmls
-            (List.rev_map ~f:Higlo.token_to_xtmpl revtoklist) in
+          Xtmpl_xml.to_string
+            (List.rev_map ~f:Higlo.token_to_xml revtoklist) in
         "<pre>" ^ html ^ "</pre>"
     in
     let rec loop acc_tokens acc_html acc_toc tokens = 
