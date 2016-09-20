@@ -8,4 +8,4 @@ build: [
 remove: [ 
   [make "uninstall" "BINDIR=%{bin}%"] 
 ]
-depends: [ "ocamlfind" "nonstd" "omd" "higlo" {= "0.4"} "sosa" "re"  ]
+depends: [ "ocamlfind" "nonstd" "omd" "higlo" "sosa" "re"  ]
