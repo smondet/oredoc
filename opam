@@ -1,7 +1,6 @@
 opam-version: "1"
 maintainer: "seb@mondet.org"
 homepage: "http://github.com/smondet/oredoc/"
-ocaml-version: [ >= "4.01.0" ]
 build: [
   [make]
   [make "install" "BINDIR=%{bin}%"] 
